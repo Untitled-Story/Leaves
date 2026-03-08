@@ -57,3 +57,5 @@ run
 
 !gradle/wrapper/gradle-wrapper.jar
 !scripts/*.sh
+
+references/
