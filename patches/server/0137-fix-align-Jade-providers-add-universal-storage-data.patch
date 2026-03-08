@@ -1,0 +1,411 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Guang_Chen_ <guangchen23333@gmail.com>
+Date: Sun, 8 Mar 2026 20:54:56 +0800
+Subject: [PATCH] fix: align Jade providers, add universal storage data
+
+
+diff --git a/src/main/java/org/leavesmc/leaves/protocol/jade/JadeProtocol.java b/src/main/java/org/leavesmc/leaves/protocol/jade/JadeProtocol.java
+index 438dfee78f7114e7c8d3d57c5dcc90e1fcc75a4c..444fd3d8d54329654637912a377504eacb3a481e 100644
+--- a/src/main/java/org/leavesmc/leaves/protocol/jade/JadeProtocol.java
++++ b/src/main/java/org/leavesmc/leaves/protocol/jade/JadeProtocol.java
+@@ -25,11 +25,13 @@ import net.minecraft.world.item.Items;
+ import net.minecraft.world.level.Level;
+ import net.minecraft.world.level.block.Block;
+ import net.minecraft.world.level.block.CampfireBlock;
++import net.minecraft.world.level.block.LecternBlock;
+ import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
+ import net.minecraft.world.level.block.entity.BeehiveBlockEntity;
+ import net.minecraft.world.level.block.entity.BlockEntity;
+ import net.minecraft.world.level.block.entity.BrewingStandBlockEntity;
+ import net.minecraft.world.level.block.entity.CalibratedSculkSensorBlockEntity;
++import net.minecraft.world.level.block.entity.CampfireBlockEntity;
+ import net.minecraft.world.level.block.entity.ChiseledBookShelfBlockEntity;
+ import net.minecraft.world.level.block.entity.CommandBlockEntity;
+ import net.minecraft.world.level.block.entity.ComparatorBlockEntity;
+@@ -58,6 +60,8 @@ import org.leavesmc.leaves.protocol.jade.payload.ServerPingPayload;
+ import org.leavesmc.leaves.protocol.jade.provider.IJadeProvider;
+ import org.leavesmc.leaves.protocol.jade.provider.IServerDataProvider;
+ import org.leavesmc.leaves.protocol.jade.provider.IServerExtensionProvider;
++import org.leavesmc.leaves.protocol.jade.provider.EnergyStorageProvider;
++import org.leavesmc.leaves.protocol.jade.provider.FluidStorageProvider;
+ import org.leavesmc.leaves.protocol.jade.provider.ItemStorageExtensionProvider;
+ import org.leavesmc.leaves.protocol.jade.provider.block.BeehiveProvider;
+ import org.leavesmc.leaves.protocol.jade.provider.block.BrewingStandProvider;
+@@ -72,6 +76,7 @@ import org.leavesmc.leaves.protocol.jade.provider.block.LecternProvider;
+ import org.leavesmc.leaves.protocol.jade.provider.block.MobSpawnerCooldownProvider;
+ import org.leavesmc.leaves.protocol.jade.provider.block.ObjectNameProvider;
+ import org.leavesmc.leaves.protocol.jade.provider.block.RedstoneProvider;
++import org.leavesmc.leaves.protocol.jade.provider.ProgressProvider;
+ import org.leavesmc.leaves.protocol.jade.provider.entity.AnimalOwnerProvider;
+ import org.leavesmc.leaves.protocol.jade.provider.entity.MobBreedingProvider;
+ import org.leavesmc.leaves.protocol.jade.provider.entity.MobGrowthProvider;
+@@ -98,6 +103,9 @@ public class JadeProtocol {
+     public static final HierarchyLookup<IServerDataProvider<EntityAccessor>> entityDataProviders = new HierarchyLookup<>(Entity.class);
+     public static final PairHierarchyLookup<IServerDataProvider<BlockAccessor>> blockDataProviders = new PairHierarchyLookup<>(new HierarchyLookup<>(Block.class), new HierarchyLookup<>(BlockEntity.class));
+     public static final WrappedHierarchyLookup<IServerExtensionProvider<ItemStack>> itemStorageProviders = new WrappedHierarchyLookup<>();
++    public static final WrappedHierarchyLookup<IServerExtensionProvider<CompoundTag>> fluidStorageProviders = new WrappedHierarchyLookup<>();
++    public static final WrappedHierarchyLookup<IServerExtensionProvider<CompoundTag>> energyStorageProviders = new WrappedHierarchyLookup<>();
++    public static final WrappedHierarchyLookup<IServerExtensionProvider<CompoundTag>> progressProviders = new WrappedHierarchyLookup<>();
+ 
+     @Contract("_ -> new")
+     public static @NotNull ResourceLocation id(String path) {
+@@ -118,7 +126,13 @@ public class JadeProtocol {
+ 
+         // universal plugin
+         entityDataProviders.register(Entity.class, ItemStorageProvider.getEntity());
++        entityDataProviders.register(Entity.class, FluidStorageProvider.getEntity());
++        entityDataProviders.register(Entity.class, EnergyStorageProvider.getEntity());
++        entityDataProviders.register(Entity.class, ProgressProvider.getEntity());
+         blockDataProviders.register(Block.class, ItemStorageProvider.getBlock());
++        blockDataProviders.register(Block.class, FluidStorageProvider.getBlock());
++        blockDataProviders.register(Block.class, EnergyStorageProvider.getBlock());
++        blockDataProviders.register(Block.class, ProgressProvider.getBlock());
+ 
+         itemStorageProviders.register(Object.class, ItemStorageExtensionProvider.INSTANCE);
+         itemStorageProviders.register(Block.class, ItemStorageExtensionProvider.INSTANCE);
+@@ -140,7 +154,7 @@ public class JadeProtocol {
+         blockDataProviders.register(BeehiveBlockEntity.class, BeehiveProvider.INSTANCE);
+         blockDataProviders.register(CommandBlockEntity.class, CommandBlockProvider.INSTANCE);
+         blockDataProviders.register(JukeboxBlockEntity.class, JukeboxProvider.INSTANCE);
+-        blockDataProviders.register(LecternBlockEntity.class, LecternProvider.INSTANCE);
++        blockDataProviders.register(LecternBlock.class, LecternProvider.INSTANCE);
+ 
+         blockDataProviders.register(ComparatorBlockEntity.class, RedstoneProvider.INSTANCE);
+         blockDataProviders.register(HopperBlockEntity.class, HopperLockProvider.INSTANCE);
+@@ -152,11 +166,14 @@ public class JadeProtocol {
+ 
+         blockDataProviders.idMapped();
+         entityDataProviders.idMapped();
+-        itemStorageProviders.register(CampfireBlock.class, CampfireProvider.INSTANCE);
++        itemStorageProviders.register(CampfireBlockEntity.class, CampfireProvider.INSTANCE);
+ 
+         blockDataProviders.loadComplete(priorities);
+         entityDataProviders.loadComplete(priorities);
+         itemStorageProviders.loadComplete(priorities);
++        fluidStorageProviders.loadComplete(priorities);
++        energyStorageProviders.loadComplete(priorities);
++        progressProviders.loadComplete(priorities);
+ 
+         try {
+             shearableBlocks = Collections.unmodifiableList(LootTableMineableCollector.execute(
+@@ -308,4 +325,4 @@ public class JadeProtocol {
+     public static void sendPingPacket(ServerPlayer player) {
+         ProtocolUtils.sendPayloadPacket(player, new ServerPingPayload(Collections.emptyMap(), shearableBlocks, blockDataProviders.mappedIds(), entityDataProviders.mappedIds()));
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/src/main/java/org/leavesmc/leaves/protocol/jade/payload/RequestEntityPayload.java b/src/main/java/org/leavesmc/leaves/protocol/jade/payload/RequestEntityPayload.java
+index ef7ee32f0f2fd78b7e7891d622f76cddb8cb0680..d9b3046aded32801ff20b1e4130b27bd5cdc8cac 100644
+--- a/src/main/java/org/leavesmc/leaves/protocol/jade/payload/RequestEntityPayload.java
++++ b/src/main/java/org/leavesmc/leaves/protocol/jade/payload/RequestEntityPayload.java
+@@ -50,4 +50,4 @@ public record RequestEntityPayload(EntityAccessorImpl.SyncData data, List<@Nulla
+     public ResourceLocation id() {
+         return PACKET_REQUEST_ENTITY;
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/src/main/java/org/leavesmc/leaves/protocol/jade/provider/EnergyStorageProvider.java b/src/main/java/org/leavesmc/leaves/protocol/jade/provider/EnergyStorageProvider.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..c76e2b51bae4fadeb6fc14216778eeb12f515763
+--- /dev/null
++++ b/src/main/java/org/leavesmc/leaves/protocol/jade/provider/EnergyStorageProvider.java
+@@ -0,0 +1,58 @@
++package org.leavesmc.leaves.protocol.jade.provider;
++
++import net.minecraft.nbt.CompoundTag;
++import net.minecraft.resources.ResourceLocation;
++import org.jetbrains.annotations.NotNull;
++import org.leavesmc.leaves.protocol.jade.JadeProtocol;
++import org.leavesmc.leaves.protocol.jade.accessor.Accessor;
++import org.leavesmc.leaves.protocol.jade.accessor.BlockAccessor;
++import org.leavesmc.leaves.protocol.jade.accessor.EntityAccessor;
++import org.leavesmc.leaves.protocol.jade.util.CommonUtil;
++import org.leavesmc.leaves.protocol.jade.util.ViewGroup;
++
++import java.util.List;
++import java.util.Map;
++import java.util.function.Function;
++
++public abstract class EnergyStorageProvider<T extends Accessor<?>> implements IServerDataProvider<T> {
++
++    private static final ResourceLocation UNIVERSAL_ENERGY_STORAGE = JadeProtocol.mc_id("energy_storage");
++
++    public static ForBlock getBlock() {
++        return ForBlock.INSTANCE;
++    }
++
++    public static ForEntity getEntity() {
++        return ForEntity.INSTANCE;
++    }
++
++    public static class ForBlock extends EnergyStorageProvider<BlockAccessor> {
++        private static final ForBlock INSTANCE = new ForBlock();
++    }
++
++    public static class ForEntity extends EnergyStorageProvider<EntityAccessor> {
++        private static final ForEntity INSTANCE = new ForEntity();
++    }
++
++    @Override
++    public ResourceLocation getUid() {
++        return UNIVERSAL_ENERGY_STORAGE;
++    }
++
++    @Override
++    public void appendServerData(CompoundTag tag, @NotNull T accessor) {
++        Map.Entry<ResourceLocation, List<ViewGroup<CompoundTag>>> entry = CommonUtil.getServerExtensionData(
++                accessor,
++                JadeProtocol.energyStorageProviders);
++        if (entry == null) {
++            return;
++        }
++        ViewGroup.saveList(tag, "JadeEnergyStorage", entry.getValue(), Function.identity());
++        tag.putString("JadeEnergyStorageUid", entry.getKey().toString());
++    }
++
++    @Override
++    public int getDefaultPriority() {
++        return 9999;
++    }
++}
+diff --git a/src/main/java/org/leavesmc/leaves/protocol/jade/provider/FluidStorageProvider.java b/src/main/java/org/leavesmc/leaves/protocol/jade/provider/FluidStorageProvider.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..7fd270b180294f6f80bdc1b2c89312395161eeb7
+--- /dev/null
++++ b/src/main/java/org/leavesmc/leaves/protocol/jade/provider/FluidStorageProvider.java
+@@ -0,0 +1,58 @@
++package org.leavesmc.leaves.protocol.jade.provider;
++
++import net.minecraft.nbt.CompoundTag;
++import net.minecraft.resources.ResourceLocation;
++import org.jetbrains.annotations.NotNull;
++import org.leavesmc.leaves.protocol.jade.JadeProtocol;
++import org.leavesmc.leaves.protocol.jade.accessor.Accessor;
++import org.leavesmc.leaves.protocol.jade.accessor.BlockAccessor;
++import org.leavesmc.leaves.protocol.jade.accessor.EntityAccessor;
++import org.leavesmc.leaves.protocol.jade.util.CommonUtil;
++import org.leavesmc.leaves.protocol.jade.util.ViewGroup;
++
++import java.util.List;
++import java.util.Map;
++import java.util.function.Function;
++
++public abstract class FluidStorageProvider<T extends Accessor<?>> implements IServerDataProvider<T> {
++
++    private static final ResourceLocation UNIVERSAL_FLUID_STORAGE = JadeProtocol.mc_id("fluid_storage");
++
++    public static ForBlock getBlock() {
++        return ForBlock.INSTANCE;
++    }
++
++    public static ForEntity getEntity() {
++        return ForEntity.INSTANCE;
++    }
++
++    public static class ForBlock extends FluidStorageProvider<BlockAccessor> {
++        private static final ForBlock INSTANCE = new ForBlock();
++    }
++
++    public static class ForEntity extends FluidStorageProvider<EntityAccessor> {
++        private static final ForEntity INSTANCE = new ForEntity();
++    }
++
++    @Override
++    public ResourceLocation getUid() {
++        return UNIVERSAL_FLUID_STORAGE;
++    }
++
++    @Override
++    public void appendServerData(CompoundTag tag, @NotNull T accessor) {
++        Map.Entry<ResourceLocation, List<ViewGroup<CompoundTag>>> entry = CommonUtil.getServerExtensionData(
++                accessor,
++                JadeProtocol.fluidStorageProviders);
++        if (entry == null) {
++            return;
++        }
++        ViewGroup.saveList(tag, "JadeFluidStorage", entry.getValue(), Function.identity());
++        tag.putString("JadeFluidStorageUid", entry.getKey().toString());
++    }
++
++    @Override
++    public int getDefaultPriority() {
++        return 9999;
++    }
++}
+diff --git a/src/main/java/org/leavesmc/leaves/protocol/jade/provider/ProgressProvider.java b/src/main/java/org/leavesmc/leaves/protocol/jade/provider/ProgressProvider.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..245eb861f87642dfdac0c530cad73625ec583de5
+--- /dev/null
++++ b/src/main/java/org/leavesmc/leaves/protocol/jade/provider/ProgressProvider.java
+@@ -0,0 +1,58 @@
++package org.leavesmc.leaves.protocol.jade.provider;
++
++import net.minecraft.nbt.CompoundTag;
++import net.minecraft.resources.ResourceLocation;
++import org.jetbrains.annotations.NotNull;
++import org.leavesmc.leaves.protocol.jade.JadeProtocol;
++import org.leavesmc.leaves.protocol.jade.accessor.Accessor;
++import org.leavesmc.leaves.protocol.jade.accessor.BlockAccessor;
++import org.leavesmc.leaves.protocol.jade.accessor.EntityAccessor;
++import org.leavesmc.leaves.protocol.jade.util.CommonUtil;
++import org.leavesmc.leaves.protocol.jade.util.ViewGroup;
++
++import java.util.List;
++import java.util.Map;
++import java.util.function.Function;
++
++public abstract class ProgressProvider<T extends Accessor<?>> implements IServerDataProvider<T> {
++
++    private static final ResourceLocation UNIVERSAL_PROGRESS = JadeProtocol.mc_id("progress");
++
++    public static ForBlock getBlock() {
++        return ForBlock.INSTANCE;
++    }
++
++    public static ForEntity getEntity() {
++        return ForEntity.INSTANCE;
++    }
++
++    public static class ForBlock extends ProgressProvider<BlockAccessor> {
++        private static final ForBlock INSTANCE = new ForBlock();
++    }
++
++    public static class ForEntity extends ProgressProvider<EntityAccessor> {
++        private static final ForEntity INSTANCE = new ForEntity();
++    }
++
++    @Override
++    public ResourceLocation getUid() {
++        return UNIVERSAL_PROGRESS;
++    }
++
++    @Override
++    public void appendServerData(CompoundTag tag, @NotNull T accessor) {
++        Map.Entry<ResourceLocation, List<ViewGroup<CompoundTag>>> entry = CommonUtil.getServerExtensionData(
++                accessor,
++                JadeProtocol.progressProviders);
++        if (entry == null) {
++            return;
++        }
++        ViewGroup.saveList(tag, "JadeProgress", entry.getValue(), Function.identity());
++        tag.putString("JadeProgressUid", entry.getKey().toString());
++    }
++
++    @Override
++    public int getDefaultPriority() {
++        return 9999;
++    }
++}
+diff --git a/src/main/java/org/leavesmc/leaves/protocol/jade/util/ItemCollector.java b/src/main/java/org/leavesmc/leaves/protocol/jade/util/ItemCollector.java
+index 8f57cb0714dc684bd90325a6d2e84d5b1b303d6e..ae9c320537f60dc829025bafc0cebe63e9e6d78c 100644
+--- a/src/main/java/org/leavesmc/leaves/protocol/jade/util/ItemCollector.java
++++ b/src/main/java/org/leavesmc/leaves/protocol/jade/util/ItemCollector.java
+@@ -91,6 +91,10 @@ public class ItemCollector<T> {
+     protected ViewGroup<ItemStack> updateCollectingProgress(ViewGroup<ItemStack> group) {
+         float progress = iterator.getCollectingProgress();
+         CompoundTag data = group.getExtraData();
++        if (iterator.isFinished()) {
++            data.remove("Collecting");
++            return group;
++        }
+         if (Float.isNaN(progress)) {
+             progress = 0;
+         }
+diff --git a/src/main/java/org/leavesmc/leaves/protocol/jade/util/ViewGroup.java b/src/main/java/org/leavesmc/leaves/protocol/jade/util/ViewGroup.java
+index 520eadbf6de55141524741b4e4063cd542ef7128..2e71018097b0f2d67ff185dd587b21ad2d6c8d77 100644
+--- a/src/main/java/org/leavesmc/leaves/protocol/jade/util/ViewGroup.java
++++ b/src/main/java/org/leavesmc/leaves/protocol/jade/util/ViewGroup.java
+@@ -2,6 +2,8 @@ package org.leavesmc.leaves.protocol.jade.util;
+ 
+ import io.netty.buffer.ByteBuf;
+ import net.minecraft.nbt.CompoundTag;
++import net.minecraft.nbt.ListTag;
++import net.minecraft.nbt.Tag;
+ import net.minecraft.network.codec.ByteBufCodecs;
+ import net.minecraft.network.codec.StreamCodec;
+ import net.minecraft.resources.ResourceLocation;
+@@ -10,6 +12,7 @@ import org.jetbrains.annotations.Nullable;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Optional;
++import java.util.function.Function;
+ 
+ public class ViewGroup<T> {
+     public static <B extends ByteBuf, T> StreamCodec<B, ViewGroup<T>> codec(StreamCodec<B, T> viewCodec) {
+@@ -49,6 +52,74 @@ public class ViewGroup<T> {
+         this.extraData = extraData.orElse(null);
+     }
+ 
++    public void save(CompoundTag tag, Function<T, CompoundTag> writer) {
++        ListTag list = new ListTag();
++        for (var view : views) {
++            list.add(writer.apply(view));
++        }
++        tag.put("Views", list);
++        if (id != null) {
++            tag.putString("Id", id);
++        }
++        if (extraData != null) {
++            tag.put("Data", extraData);
++        }
++    }
++
++    public static <T> ViewGroup<T> read(CompoundTag tag, Function<CompoundTag, T> reader) {
++        ListTag list = tag.getList("Views", Tag.TAG_COMPOUND);
++        List<T> views = new java.util.ArrayList<>();
++        for (var view : list) {
++            views.add(reader.apply((CompoundTag) view));
++        }
++        ViewGroup<T> group = new ViewGroup<>(views);
++        if (tag.contains("Id")) {
++            group.id = tag.getString("Id");
++        }
++        if (tag.contains("Data")) {
++            group.extraData = tag.getCompound("Data");
++        }
++        return group;
++    }
++
++    public static <T> boolean saveList(CompoundTag tag, String key, List<ViewGroup<T>> groups, Function<T, CompoundTag> writer) {
++        if (groups == null) {
++            return false;
++        }
++        if (groups.isEmpty()) {
++            return true;
++        }
++        ListTag groupList = new ListTag();
++        for (ViewGroup<T> group : groups) {
++            if (group.views.isEmpty()) {
++                continue;
++            }
++            CompoundTag groupTag = new CompoundTag();
++            group.save(groupTag, writer);
++            groupList.add(groupTag);
++        }
++        if (!groupList.isEmpty()) {
++            tag.put(key, groupList);
++        }
++        return true;
++    }
++
++    @Nullable
++    public static <T> List<ViewGroup<T>> readList(CompoundTag tag, String key, Function<CompoundTag, T> reader) {
++        ListTag list = tag.getList(key, Tag.TAG_COMPOUND);
++        if (list.isEmpty()) {
++            return null;
++        }
++        List<ViewGroup<T>> groups = new java.util.ArrayList<>();
++        for (var item : list) {
++            ViewGroup<T> group = read((CompoundTag) item, reader);
++            if (!group.views.isEmpty()) {
++                groups.add(group);
++            }
++        }
++        return groups;
++    }
++
+     public CompoundTag getExtraData() {
+         if (extraData == null) {
+             extraData = new CompoundTag();
